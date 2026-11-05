@@ -1,8 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  // Example: 
-baseURL: 'https://pennywise-xxxx.onrender.com/api',
+  baseURL: 'https://pennywise-6uqd.onrender.com/api',
 });
 
 API.interceptors.request.use((req) => {
