@@ -14,25 +14,13 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || '*' 
 }));         
 
-// 2. Connect to MongoDB
-// It will use the MONGO_URI from Render. If not found, it falls back to localhost.
-const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/pennywise';
-mongoose.connect(mongoURI)
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch((err) => console.log('❌ MongoDB Connection Error:', err));
-
-// ==========================================
-// 3. DATABASE MODELS (Schemas)
-// ==========================================
-
-// User Schema
+// 2. Database Models
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true }
 });
 const User = mongoose.model('User', UserSchema);
 
-// Expense Schema
 const ExpenseSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, required: true },
@@ -42,15 +30,12 @@ const ExpenseSchema = new mongoose.Schema({
 });
 const Expense = mongoose.model('Expense', ExpenseSchema);
 
-// ==========================================
-// 4. MIDDLEWARE (Protect Routes)
-// ==========================================
+// 3. Middleware
 const auth = (req, res, next) => {
   const token = req.header('Authorization');
   if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
 
   try {
-    // Token comes as "Bearer eyJhbG..."
     const decoded = jwt.verify(token.split(' ')[1], 'mysecretkey');
     req.user = decoded;
     next();
@@ -59,26 +44,17 @@ const auth = (req, res, next) => {
   }
 };
 
-// ==========================================
-// 5. API ROUTES
-// ==========================================
-
-// --- AUTH ROUTES ---
-
+// 4. API Routes
 // Register User
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-    // Hash the password (encrypt it)
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Save user
     const newUser = new User({ email, password: hashedPassword });
     await newUser.save();
 
@@ -92,31 +68,22 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Find user
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Create Token
     const token = jwt.sign({ id: user._id }, 'mysecretkey', { expiresIn: '1d' });
-
-    // Send token and user info back to frontend
     res.json({ token, user: { id: user._id, email: user.email } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// --- EXPENSE ROUTES ---
-
-// Get all expenses for the logged-in user
+// Get all expenses
 app.get('/api/expenses', auth, async (req, res) => {
   try {
-    // Find expenses where userId matches the logged-in user
     const expenses = await Expense.find({ userId: req.user.id }).sort({ date: -1 });
     res.json(expenses);
   } catch (err) {
@@ -128,14 +95,12 @@ app.get('/api/expenses', auth, async (req, res) => {
 app.post('/api/expenses', auth, async (req, res) => {
   try {
     const { title, amount, category } = req.body;
-    
     const newExpense = new Expense({
       userId: req.user.id,
       title,
       amount,
       category
     });
-
     await newExpense.save();
     res.status(201).json(newExpense);
   } catch (err) {
@@ -154,9 +119,21 @@ app.delete('/api/expenses/:id', auth, async (req, res) => {
 });
 
 // ==========================================
-// 6. START SERVER (Updated for Render)
+// 5. CONNECT TO DATABASE & START SERVER
 // ==========================================
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/pennywise';
+
+// Connect to MongoDB FIRST, then start the server
+mongoose.connect(mongoURI)
+  .then(() => {
+    console.log('✅ MongoDB Connected Successfully');
+    
+    // Start listening only after DB is connected
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log('❌ MongoDB Connection Error:', err);
+  });
