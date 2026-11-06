@@ -7,11 +7,17 @@ const jwt = require('jsonwebtoken');
 const app = express();
 
 // 1. Middleware
-app.use(express.json()); // Allows us to read JSON data from the frontend
-app.use(cors());         // Fixes the Network Error (allows frontend to connect)
+app.use(express.json()); 
+
+// Fixes the CORS error. Allows your Vercel frontend to connect.
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*' 
+}));         
 
 // 2. Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/pennywise')
+// It will use the MONGO_URI from Render. If not found, it falls back to localhost.
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/pennywise';
+mongoose.connect(mongoURI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch((err) => console.log('❌ MongoDB Connection Error:', err));
 
@@ -148,9 +154,9 @@ app.delete('/api/expenses/:id', auth, async (req, res) => {
 });
 
 // ==========================================
-// 6. START SERVER
+// 6. START SERVER (Updated for Render)
 // ==========================================
-const PORT = 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
